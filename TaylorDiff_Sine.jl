@@ -1,4 +1,4 @@
-using Random, Distributions, Plots, Optimisers, Zygote
+using Random, Distributions, Plots, Optimisers, Zygote, TaylorDiff
 
 # Constants
 SEED = 42
@@ -10,22 +10,22 @@ N_EPOCHS = 5000
 rng = MersenneTwister(SEED)
 
 # Initialize weights and biases
-uniform_limit = sqrt(2 / (1 + HIDDEN_DEPTH))
-W = rand(rng, Uniform(-uniform_limit, +uniform_limit), HIDDEN_DEPTH, 1)
-V = rand(rng, Uniform(-uniform_limit, +uniform_limit), 1, HIDDEN_DEPTH)
-b = zeros(HIDDEN_DEPTH)
+uniform_limit = sqrt(2f0 / (1 + HIDDEN_DEPTH))
+W = Float32.(rand(rng, Uniform(-uniform_limit, +uniform_limit), HIDDEN_DEPTH, 1))
+V = Float32.(rand(rng, Uniform(-uniform_limit, +uniform_limit), 1, HIDDEN_DEPTH))
+b = Float32.(zeros(HIDDEN_DEPTH))
 
 # Bundle parameters
 parameters = (; W, V, b)
 
 # Define activation function
-sigmoid(x) = 1.0 / (1.0 + exp(-x))
+sigmoid(x) = 1 / (1+ exp(-x))
 
 # Define network forward pass
 network_forward(x, p) = p.V * sigmoid.(p.W * x .+ p.b)
 
 # Generate input data
-x = reshape(collect(range(0.0f0, stop=1.0f0, length=100)), (1, 100))
+x = reshape(collect(range(-1.0f0, stop=1.0f0, length=100)), (1, 100))
 
 # Plot initial network output
 #plot(network_forward(x, parameters)')
@@ -63,4 +63,15 @@ end
 plot(sin.(x)')
 
 # Plot prediction
-plot(network_forward(x, parameters)')
+plot!(network_forward(x, parameters)')
+
+f1(x) = sin.(x)
+f2(x) = network_forward(x, parameters)
+
+f1(x)
+f2(x)
+
+derivative_1 = TaylorDiff.derivative.(f1, x, Val(1))
+derivative_2 = TaylorDiff.derivative(f2, x, Float32.(ones(size(x))), Val(1))
+plot(derivative_1')
+plot!(derivative_2')
