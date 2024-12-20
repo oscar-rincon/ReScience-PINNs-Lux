@@ -1,12 +1,16 @@
 using Lux, Random, TaylorDiff, Plots, Optimisers, Zygote, ComponentArrays, Printf, LinearAlgebra
+using Optimisers
+using CUDA
+gdev = CUDADevice()
 
+CUDA.driver_version()
 # Seeding
 rng = Random.default_rng()
 Random.seed!(rng, 0)
 
 # Device setup
 const DEVICE_CPU = cpu_device()
-const DEVICE_GPU = gpu_device()
+DEVICE_GPU = CUDADevice()
 
 # Data preparation
 const INPUT_RANGE = range(-1f0, 1f0, length=100)
@@ -28,9 +32,9 @@ model = Chain(
 )
 
 # Model initialization
-params, states = Lux.setup(rng, model) |> DEVICE_GPU
-params = params |> ComponentArray
-neural_network = StatefulLuxLayer{true}(model, params, states)
+parameters, states = Lux.setup(rng, model) |> gdev
+parameters = parameters |> ComponentArray
+neural_network = StatefulLuxLayer{true}(model, parameters, states)
 
 # Neural network predictions
 predicted_output = neural_network(input_data)
@@ -51,13 +55,13 @@ plot!(input_data', gradient_target', label="Gradient (Target Function)")
 
 # Initialize optimizer
 const LEARNING_RATE = 0.001f0
-optimizer = Adam(LEARNING_RATE)
+optimizer = Optimisers.Adam(LEARNING_RATE)
 vjp_rule = AutoZygote()
-train_state = Training.TrainState(model, params, states, optimizer)
+train_state = Training.TrainState(model, parameters, states, optimizer)
 
 # Training loop
 function train_model!(state::Training.TrainState, vjp_rule, data, epochs)
-    data = data .|> DEVICE_GPU
+    data = data .|> gdev
     for epoch in 1:epochs
         _, loss, _, state = Training.single_train_step!(vjp_rule, loss_function, data, state)
         if epoch % 50 == 1 || epoch == epochs
