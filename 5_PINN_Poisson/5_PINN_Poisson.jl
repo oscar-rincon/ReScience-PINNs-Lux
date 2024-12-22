@@ -17,9 +17,10 @@ using QuasiMonteCarlo, Distributions # Sampling utilities
 rng = Random.default_rng() # Random number generator
 Random.seed!(rng, 0) # Seed value
 
+ 
 # Device configuration (CPU/GPU)
-const DEVICE_CPU = cpu_device()   # CPU device 
-const DEVICE_GPU = gpu_device()   # GPU device
+DEVICE_CPU = cpu_device()   # CPU device
+DEVICE_GPU = gpu_device()   # GPU device
 
 # Sample points using Latin Hypercube Sampling
 @printf "Generating sample points using Latin Hypercube Sampling\n"
@@ -75,15 +76,14 @@ model = Chain(
 
 # Model initialization
 parameters, states = Lux.setup(rng, model)  # Initial parameters and states
-parameters = ComponentArray(parameters) |> DEVICE_GPU  # Move parameters to the device
+parameters = ComponentArray(parameters) |> DEVICE_GPU    # Move parameters to the device
 states = states |> DEVICE_GPU  # Move states to the device
-smodel = StatefulLuxLayer{true}(model, parameters, states)  # Stateful model layer
+smodel = StatefulLuxLayer{true}(model, parameters, states) |> DEVICE_GPU # Stateful model layer
 
-# Test the neural network (initial forward pass)
-Array(smodel(xy))
  
+derivative = TaylorDiff.derivative(smodel, xy, CUDA.fill(1.0f0, size(xy)), Val(1)) 
+#TaylorDiff.derivative(smodel, xy, Float32.(ones(size(xy))), Val(1))
 
-TaylorDiff.derivative(Array(smodel), Array(xy), Float32.(ones(size(xy))), Val(1))
 
 # Callback function
 # Monitors training progress

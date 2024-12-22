@@ -3,18 +3,17 @@ using Optimisers
 using CUDA
 gdev = CUDADevice()
 
-CUDA.driver_version()
 # Seeding
 rng = Random.default_rng()
 Random.seed!(rng, 0)
 
 # Device setup
 const DEVICE_CPU = cpu_device()
-DEVICE_GPU = CUDADevice()
+#const DEVICE_GPU = CUDADevice()
 
 # Data preparation
 const INPUT_RANGE = range(-1f0, 1f0, length=100)
-input_data = reshape(collect(INPUT_RANGE), 1, :)
+input_data = reshape(collect(INPUT_RANGE), 1, :) |> gdev
 true_output = reshape(Float32.(sin.(10*input_data)), 1, :)
 
 # Reference function
@@ -32,21 +31,27 @@ model = Chain(
 )
 
 # Model initialization
-parameters, states = Lux.setup(rng, model) |> gdev
+parameters, states = Lux.setup(rng, model) |> DEVICE_CPU
 parameters = parameters |> ComponentArray
-neural_network = StatefulLuxLayer{true}(model, parameters, states)
+neural_network = StatefulLuxLayer{true}(model, parameters, states) |> gdev 
 
 # Neural network predictions
-predicted_output = neural_network(input_data)
+predicted_output = neural_network(input_data|> DEVICE_CPU)
+
+function neural_network_cpu(input_data)
+    return Array(neural_network(input_data)) 
+end
+
+predicted_output =neural_network_cpu(Array(input_data))
 
 # Plot the neural network output vs target function
-plot(input_data', true_output', label="Target Function")
-plot!(input_data', predicted_output', label="Neural Network Output")
+plot(Array(input_data)', Array(true_output)', label="Target Function")
+plot!(Array(input_data)', Array(predicted_output)', label="Neural Network Output")
 
 # Gradient calculations
 gradient_zygote = only(Zygote.gradient(sum ∘ neural_network, input_data))
-gradient_taylor = TaylorDiff.derivative(neural_network, input_data, Float32.(ones(size(input_data))), Val(1))
-gradient_target = TaylorDiff.derivative(target_function, input_data, Float32.(ones(size(input_data))), Val(1))
+gradient_taylor = TaylorDiff.derivative(neural_network|> DEVICE_CPU,input_data|> DEVICE_CPU, Float32.(ones(size(input_data|> DEVICE_CPU))), Val(1))
+gradient_target = TaylorDiff.derivative(target_function, Array(input_data), Float32.(ones(size(input_data))), Val(1))
 
 # Plot gradients
 plot(input_data', gradient_zygote', label="Gradient (Zygote)")

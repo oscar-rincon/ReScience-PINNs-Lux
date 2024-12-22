@@ -1,5 +1,6 @@
 # Import required packages
 using Lux                  # Neural network definition and training
+using LuxCUDA
 using TaylorDiff           # Automatic differentiation
 using Optimization         # Optimization problem solving
 using Optimisers           # Optimizers such as Adam
