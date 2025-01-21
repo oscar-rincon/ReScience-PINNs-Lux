@@ -12,6 +12,7 @@ using Printf               # Advanced formatted printing
 using LinearAlgebra        # Linear algebra operations
 using OptimizationOptimisers  # Optimization extensions for Optimisers
 using OptimizationOptimJL     # Optimization extensions for LBFGS
+using Statistics           # Statistical operations
 
 # Initial program setup
 # Seeding for reproducibility
@@ -61,15 +62,34 @@ end
 
 # Loss function definition
 # Uses adjoint method for gradient computation
+# Definir el valor de ε1
+εmachine = eps(Float32)
+ε2 = 1e-4
+
+f(input_data) = smodel(input_data, params)
+f(input_data)
+MSELoss()(f(input_data), true_output)
+
+f(input_data) = smodel(input_data, params)
+ddu(input_data)=Float32.((f(input_data .+ ε2) .- 2f0 .* f(input_data) .+ f(input_data .- ε2)) / (ε2^2))#Float32.((f(input_data .+ ε2) .- 2f0 .* f(input_data) .+ f(input_data .- ε2)) / (ε2^2))
+ddu(input_data)
+ε2
+res_eq = ddu(input_data)
+loss_eq = mean((res_eq-true_output).^2)  
+
 function loss_adjoint(params, (input_data, true_output))
-    pred = smodel(input_data, params)  # Network prediction
-    return MSELoss()(pred, true_output)  # Mean squared error loss
+    #pred = smodel(input_data, params)  # Network prediction
+    f(input_data) = smodel(input_data, params)
+    ddu(input_data)=Float32.((f(input_data .+ ε2) .- 2f0 .* f(input_data) .+ f(input_data .- ε2)) / (ε2^2))
+    res_eq = ddu(input_data)
+    loss_eq = mean((res_eq-true_output).^2)  
+    return loss_eq#MSELoss()(pred, true_output)  # Mean squared error loss
 end
 
 # Define the optimization problem
 opt_func = OptimizationFunction(loss_adjoint, Optimization.AutoZygote())
 opt_prob = OptimizationProblem(opt_func, params, data)
-epochs = 5_000  # Maximum number of iterations
+epochs = 500  # Maximum number of iterations
 
 # Train using the Adam optimizer
 res_adam = solve(opt_prob, Optimisers.Adam(0.001), callback=callback, maxiters=epochs)
